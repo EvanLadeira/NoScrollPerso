@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">NoScrollPerso</string>
+    <string name="service_description">Bloque Reels et Shorts. Lit uniquement Instagram et YouTube, aucun accès Internet.</string>
 </resources>
