@@ -3,13 +3,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.noscroll"
+    namespace = "com.perso.noscroll"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.noscroll"
+        applicationId = "com.perso.noscroll"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

@@ -41,7 +41,7 @@ class NoScrollService : AccessibilityService() {
         if (DEBUG) dumpIds(root)
 
         val onShortVideo = ids.any { id ->
-            root.findAccessibilityNodeInfosByViewId(id).isNotEmpty()
+            root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser }
         }
 
         val now = System.currentTimeMillis()
