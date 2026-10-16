@@ -36,7 +36,7 @@ class NoScrollService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
         val ids = TARGETS[pkg] ?: return
-        if (!Prefs.isEnabled(this)) return
+        if (!Prefs.isEnabled(this) || Prefs.isPaused(this)) return
 
         val root = rootInActiveWindow ?: return
         if (DEBUG) dumpIds(root)
