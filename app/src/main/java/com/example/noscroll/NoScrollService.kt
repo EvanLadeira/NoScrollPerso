@@ -1,11 +1,17 @@
 package com.perso.noscroll
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.Gravity
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.TextView
 import android.widget.Toast
 
 class NoScrollService : AccessibilityService() {
@@ -33,12 +39,19 @@ class NoScrollService : AccessibilityService() {
         )
 
         private const val COOLDOWN_MS = 1500L
+
+        // Position du chrono : décalage depuis le haut et la droite, en pixels
+        private const val OVERLAY_X = 24
+        private const val OVERLAY_Y = 140
     }
 
     private var lastBlock = 0L
     private val handler = Handler(Looper.getMainLooper())
     private var ticking = false
     private var lastTick = 0L
+
+    private var overlay: TextView? = null
+    private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
 
     // Tourne chaque seconde, uniquement tant qu'un contenu court est visible
     private val tick = object : Runnable {
@@ -49,6 +62,7 @@ class NoScrollService : AccessibilityService() {
             val target = if (active) visibleShortPkg() else null
             if (target == null) {
                 ticking = false
+                hideOverlay()
                 return
             }
 
@@ -57,11 +71,14 @@ class NoScrollService : AccessibilityService() {
             lastTick = now
             Prefs.addQuotaUsed(svc, delta)
 
-            if (Prefs.quotaUsedMs(svc) >= Prefs.quotaMinutes(svc) * 60_000L) {
+            val remaining = Prefs.quotaMinutes(svc) * 60_000L - Prefs.quotaUsedMs(svc)
+            if (remaining <= 0) {
                 Prefs.startLock(svc)
                 ticking = false
+                hideOverlay()
                 block(target, force = true)
             } else {
+                showOverlay("Reste ${fmt(remaining)}")
                 handler.postDelayed(this, 1000)
             }
         }
@@ -122,6 +139,62 @@ class NoScrollService : AccessibilityService() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
+    // --- Chrono flottant ---
+
+    private fun showOverlay(content: String) {
+        val view = overlay ?: createOverlay() ?: return
+        view.text = content
+    }
+
+    private fun createOverlay(): TextView? {
+        val view = TextView(this).apply {
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setPadding(28, 14, 28, 14)
+            background = GradientDrawable().apply {
+                setColor(0xAA000000.toInt())
+                cornerRadius = 48f
+            }
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = OVERLAY_X
+            y = OVERLAY_Y
+        }
+
+        return try {
+            windowManager.addView(view, params)
+            overlay = view
+            view
+        } catch (e: Exception) {
+            Log.e(TAG, "Impossible d'afficher le chrono", e)
+            null
+        }
+    }
+
+    private fun hideOverlay() {
+        val view = overlay ?: return
+        overlay = null
+        try {
+            windowManager.removeView(view)
+        } catch (e: IllegalArgumentException) {
+            // déjà retiré
+        }
+    }
+
+    private fun fmt(ms: Long): String {
+        val total = ((ms + 999) / 1000).toInt()
+        return "%d:%02d".format(total / 60, total % 60)
+    }
+
     private fun dumpIds(node: AccessibilityNodeInfo?) {
         node ?: return
         node.viewIdResourceName?.let { Log.d(TAG, it) }
@@ -132,6 +205,7 @@ class NoScrollService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tick)
+        hideOverlay()
         super.onDestroy()
     }
 }
